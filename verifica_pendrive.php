@@ -1,5 +1,4 @@
 <?php
-
 function isPendriveConnected() {
     $command = "lsblk -o NAME,FSTYPE,MOUNTPOINT,LABEL,SIZE,MODEL,VENDOR";
     exec($command, $output, $returnCode);
@@ -52,21 +51,23 @@ $publicKeyFiles = glob($publicKeysDirectory . '*.pem');
 // Extrai a chave pública a partir da chave privada
 $privateKeyDetails = openssl_pkey_get_details($privateKey);
 $publicKey = $privateKeyDetails['key'];
+// Remove espaços em branco e quebras de linha das chaves para comparação
+$publicKey = str_replace(["\r", "\n", " "], '', $publicKey);
 
 // Verifica se a chave pública do pendrive corresponde a alguma chave pública armazenada
 foreach ($publicKeyFiles as $publicKeyFile) {
     $storedPublicKey = file_get_contents($publicKeyFile);
-
-    // echo "Chave pública do pendrive: $publicKey\n";
-    // echo "Chave pública armazenada: $storedPublicKey\n";
+    $storedPublicKey = str_replace(["\r", "\n", " "], '', $storedPublicKey);
 
     // Verifica se a chave pública do pendrive corresponde à chave pública armazenada
     if ($publicKey === $storedPublicKey) {
         echo "Chave pública do pendrive corresponde a uma chave pública armazenada.\n";
 
         // Extrai o nome de usuário do arquivo da chave
-        $userName = pathinfo($publicKeyFile, PATHINFO_FILENAME);
-        
+        $fileName = pathinfo($publicKeyFile, PATHINFO_FILENAME);
+        $underscorePos = strpos($fileName, '_');
+        $userName = substr($fileName, 0, $underscorePos);
+
         // Carrega as informações de usuário do arquivo JSON
         $usersJsonPath = '/var/www/html/seguranca/batata.json'; // Substitua pelo caminho real
         $usersJson = file_get_contents($usersJsonPath);
@@ -74,10 +75,10 @@ foreach ($publicKeyFiles as $publicKeyFile) {
 
         // Verifica se o usuário existe no arquivo JSON
         if (isset($usersData[$userName])) {
-           // Saída do buffer e redirecionamento
-           echo "Usuário {$userName} encontrado no arquivo JSON.\n";
-           header("Location: pagina_senha.php?usuario={$userName}");
-           exit();
+            $cmd = "/usr/bin/php /var/www/html/seguranca/pagina_senha.php {$userName}";
+            // Executa o script pagina_senha.php usando passthru
+            passthru($cmd);
+            exit;
         } else {
             echo "Usuário não encontrado no arquivo JSON. Autenticação falhou.\n";
             exit(1);
@@ -88,4 +89,5 @@ foreach ($publicKeyFiles as $publicKeyFile) {
 // Se o loop terminar e nenhuma correspondência for encontrada
 echo "Chave pública do pendrive não corresponde a nenhuma chave pública armazenada. Autenticação falhou.\n";
 exit(1);
+
 ?>
